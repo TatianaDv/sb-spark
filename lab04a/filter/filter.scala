@@ -18,7 +18,8 @@ object filter  extends App {
         .format("kafka")
         .option("kafka.bootstrap.servers", "spark-master-1:6667")
         .option("subscribe", sparkSession.conf.get("spark.filter.topic_name"))
-        .option("startingOffsets",if (offset == "earliest") s"$offset" else s""" { "lab04_input_data": {"0": $offset } """)
+        .option("failOnDataLoss", false)
+        .option("startingOffsets",if (offset == "earliest") s"$offset" else s""" { "lab04_input_data": {"0": $offset }} """)
         .load()
 
     val jsonString = df
