@@ -13,13 +13,14 @@ object filter  extends App {
     import sparkSession.implicits._
 
     val offset = sparkSession.conf.get("spark.filter.offset")
+    val subscr = sparkSession.conf.get("spark.filter.topic_name")
     val df = sparkSession
         .read
         .format("kafka")
         .option("kafka.bootstrap.servers", "spark-master-1:6667")
-        .option("subscribe", sparkSession.conf.get("spark.filter.topic_name"))
+        .option("subscribe", subscr)
         .option("failOnDataLoss", false)
-        .option("startingOffsets",if (offset == "earliest") s"$offset" else s""" { "lab04_input_data": {"0": $offset }} """)
+        .option("startingOffsets",if (offset == "earliest") s"$offset" else s""" { "$subscr": {"0": $offset }} """)
         .load()
 
     val jsonString = df
