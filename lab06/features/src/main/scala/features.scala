@@ -46,6 +46,7 @@ object features  extends App {
   // для каждого uid есть набор из 1000 сайтов cnt-35960000
   val userListWithTop1000 = webCntTop1000.crossJoin(userList)
 
+  // соединяем в одну колонку 1000 сайтов
   val webCntUserForTop1000 = userListWithTop1000
     .join(webCntUser, Seq("uid", "domain"), "left")
     .na.fill(0)
@@ -79,7 +80,7 @@ object features  extends App {
     .join(workHours, Seq("uid"), "left")
     .withColumn("web_fraction_work_hours", Try('web_count_work_hours / 'web_count_all_hours).getOrElse(lit(0)))
 
-  // количество для вечерних часов
+  // доля для вечерних часов
   val fractionEvening = countAllHours
     .join(eveningHours, Seq("uid"), "left")
     .withColumn("web_fraction_evening_hours", Try('web_count_evening_hours / 'web_count_all_hours).getOrElse(lit(0)))
