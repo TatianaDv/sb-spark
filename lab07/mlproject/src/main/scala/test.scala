@@ -1,7 +1,8 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.functions.{udf, col}
+import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.ml.{Pipeline, PipelineModel}
+import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.types.{ArrayType, LongType, StringType, StructField, StructType}
 
 object test  extends App {
@@ -11,25 +12,30 @@ object test  extends App {
     .appName("lab07_33")
     .getOrCreate()
 
+  var modelDir = sparkSession.conf.get("spark.mlproject.modeldir")
+  var topicInput = sparkSession.conf.get("spark.mlproject.topicinput")
+  var topicOutput = sparkSession.conf.get("spark.mlproject.topicoutput")
+
   import sparkSession.implicits._
 
-  val model = PipelineModel.load("/user/tatiana.dvoryaninova/model_test1")
+  val model = PipelineModel.load(modelDir)
 
   val schemaJson = StructType(
-    List(StructField("uid", StringType), StructField("domains", ArrayType(StructType(
-      List(StructField("url", StringType), StructField("timestamp", StringType)))))))
+    Seq(StructField("uid", StringType), StructField("visits", ArrayType(StructType(
+      Seq(StructField("url", StringType), StructField("timestamp", LongType)))))))
 
   val kafkaParams = Map(
     "kafka.bootstrap.servers" -> "spark-master-1:6667",
-    "subscribe" -> "tatiana_dvoryaninova",
-    "startingOffsets" -> """earliest"""
+    "subscribe" -> topicInput,
+    "maxOffsetsPerTrigger"    -> "5000",
+    "startingOffsets" -> "earliest"
   )
   val dfKafka = sparkSession.readStream.format("kafka").options(kafkaParams).load
 
   val dfClearJson = dfKafka
     .select(from_json($"value".cast("String"), schemaJson).as("parsed_json"))
     .select ($"parsed_json.*")
-    .select('uid, explode('domains).alias("visits"))
+    .select('uid, explode('visits).alias("visits"))
     .withColumn("url", col("visits").getField("url"))
     .drop("visits")
     .groupBy("uid").agg(collect_list('url).alias("domains"))
@@ -43,8 +49,10 @@ object test  extends App {
     .writeStream
     .outputMode("update")
     .format("kafka")
+    .trigger(Trigger.ProcessingTime("5 seconds"))
     .option("kafka.bootstrap.servers", "spark-master-1:6667")
-    .option("topic", "tatiana_dvoryaninova_lab04b")
+    .option("topic", topicOutput)
+    .option("checkpointLocation", "chk_tatiana_dvoryaninova_t4")
     .start()
 
   dfKafkaOutput.awaitTermination()
